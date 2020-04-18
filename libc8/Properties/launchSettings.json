@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "libc8": {
+      "commandName": "Project"
+    }
+  }
+}
