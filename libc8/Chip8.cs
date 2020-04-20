@@ -95,7 +95,15 @@ namespace c8alpha
             n = (byte)(opcode & 0x000F);
             x = (byte)((opcode & 0x0F00) >> 8);
             y = (byte)((opcode & 0x00F0) >> 4);
-
+#if DEBUG
+            Console.WriteLine("Executing next instruction: ");
+            Console.WriteLine("\tOpCode: 0x" + Convert.ToString(opcode, 16));
+            if(x < Constants.VRegCount) Console.WriteLine("\tx: 0x" + Convert.ToString(x, 16) + " Vx: " + V[x].ToString());
+            if (y < Constants.VRegCount) Console.WriteLine("\ty: 0x" + Convert.ToString(y, 16) + " Vy: " + V[y].ToString());
+            Console.WriteLine("\tN: " + n.ToString());
+            Console.WriteLine("\tNN: " + n.ToString());
+            Console.WriteLine("\tAddress: 0x" + Convert.ToString(addr, 16));
+#endif
             switch (nibble)
             {
                 case 0x0:
@@ -224,82 +232,151 @@ namespace c8alpha
 
         private void Execute() //0NNN
         {
-
+#if DEBUG
+            Console.WriteLine("\tRunning execute (does nothing)");
+#endif
         }
 
         private void ClearScreen() //00E0
         {
+#if DEBUG
+            Console.WriteLine("\tClearing scree");
+#endif
             this.FrameBuffer.Initialize();
+
         }
 
         private void ReturnFromSub() //00EE
         {
+#if DEBUG
+            Console.WriteLine("\tReturn from sub");
+#endif
             this.PC = Pop();
         }
 
         private void JumpToAddr(ushort addr) //1NNN
         {
+#if DEBUG
+            Console.WriteLine("\tJump to addr:" + Convert.ToString(addr, 16));
+#endif
             this.PC = addr;
         }
         private void ExecuteSub(ushort addr) //2NNN
         {
+#if DEBUG
+            Console.WriteLine("\tExecute sub at " + Convert.ToString(addr, 16));
+#endif
             Push(this.PC);
             this.PC = addr;
         }
 
         private void SkipIfVxEqual(byte x, byte value) //3XNN
         {
+#if DEBUG
+            Console.WriteLine("\tSkip if Vx = Val ");
+#endif
             if (V[x] == value) SkipOpcode();
         }
 
         private void SkipIfVxNotEqual(byte x, byte value) //4XNN
         {
+#if DEBUG
+            Console.WriteLine("\tSkip if Vx != Val ");
+#endif
             if (V[x] != value) SkipOpcode();
         }
         private void SkipIfVxEqualVy(byte x, byte y) //5XY0
         {
+#if DEBUG
+            Console.WriteLine("\tSkip if Vx = Vy ");
+#endif
             if (V[x] == V[y]) SkipOpcode();
         }
         private void StoreInVx(byte x, byte value) //6XNN
         {
+#if DEBUG
+            Console.WriteLine("\tStore in Vx ");
+#endif
             V[x] = value;
         }
         private void AddToVx(byte x, byte value) //7XNN
         {
+#if DEBUG
+            Console.WriteLine("\tAdd to in Vx ");
+#endif
             V[x] += value;
         }
         private void StoreVyInVx(byte x, byte y) //8XY0
         {
+#if DEBUG
+            Console.WriteLine("\tStore in Vy ");
+#endif
             V[x] = V[y];
         }
         private void StoreVxOrVy(byte x, byte y) //8XY1
         {
+#if DEBUG
+            Console.WriteLine("\tVx = Vx | Vy");
+#endif
             V[x] = (byte)(V[x] | V[y]);
         }
         private void StoreVxAndVy(byte x, byte y) //8XY2
         {
+#if DEBUG
+            Console.WriteLine("\tVx = Vx & Vy");
+#endif
             V[x] = (byte)(V[x] & V[y]);
         }
         private void StoreVxXorVy(byte x, byte y) //8XY3
         {
+#if DEBUG
+            Console.WriteLine("\tVx = Vx ^ Vy");
+#endif
             V[x] = (byte)(V[x] ^ V[y]);
         }
         private void AddVyToVxWithCarry(byte x, byte y) //8XY4
         {
+#if DEBUG
+            Console.WriteLine("\tAdd with carry");
+#endif
             int result = V[x] + V[y];
-            if (result > 256) V[0xF] = 1;
+            if (result > 256)
+            {
+                V[0xF] = 1;
+#if DEBUG
+                Console.WriteLine("\tCarry flag set");
+#endif
+            }
             V[x] = (byte)result;
         }
 
         private void SubtractVyFromVx(byte x, byte y) //8XY5
         {
-            if (V[x] > V[y]) V[0xF] = 1;
-            else V[0xF] = 0;
+#if DEBUG
+            Console.WriteLine("\tSubtract Vy from Vx");
+#endif
+            if (V[x] > V[y])
+            {
+#if DEBUG
+                Console.WriteLine("\tBorrow flag set");
+#endif
+                V[0xF] = 1;
+            }
+            else
+            {
+                V[0xF] = 0;
+#if DEBUG
+                Console.WriteLine("\tBorrow flag NOT set");
+#endif
+            }
             V[x] -= V[y];
         }
 
         private void RshVyToVx(byte x, byte y) //8XY6
         {
+#if DEBUG
+            Console.WriteLine("\tRight shift");
+#endif
             if (V[y] << 7 != 0) V[0xF] = 1;
             else V[0xF] = 0;
 
@@ -308,12 +385,30 @@ namespace c8alpha
 
         private void SubtrackVxFromVy(byte x, byte y) //8XY7
         {
-            if (V[x] < V[y]) V[0xF] = 1;
-            else V[0xF] = 0;
+#if DEBUG
+            Console.WriteLine("\tSubtract Vx from Vy");
+#endif
+            if (V[x] < V[y])
+            {
+#if DEBUG
+                Console.WriteLine("\tBorrow flag set");
+#endif
+                V[0xF] = 1;
+            }
+            else
+            {
+                V[0xF] = 0;
+#if DEBUG
+                Console.WriteLine("\tBorrow flag NOT set");
+#endif
+            }
             V[x] = (byte)(V[y] - V[x]);
         }
         private void LshVyToVx(byte x, byte y) //8XYE
         {
+#if DEBUG
+            Console.WriteLine("\tLeft shift");
+#endif
             if (V[y] >> 7 != 0) V[0xF] = 1;
             else V[0xF] = 0;
 
@@ -321,16 +416,25 @@ namespace c8alpha
         }
         private void SkipIfVxNotEqualVy(byte x, byte y) //9XY0
         {
+#if DEBUG
+            Console.WriteLine("\tSkip if Vx != Vy");
+#endif
             if (V[x] != V[y]) SkipOpcode();
         }
 
         private void StoreAddrInI(ushort addr) //ANNN
         {
+#if DEBUG
+            Console.WriteLine("\tSet addr into I");
+#endif
             I = addr;
         }
 
         private void JumpToAddrPlusV0(ushort addr) //BNNN
         {
+#if DEBUG
+            Console.WriteLine("\tJump to V0 + addr, result is " + Convert.ToString(V[0x0] + addr, 16));
+#endif
             PC = (byte)(addr + V[0x0]);
         }
 
@@ -348,6 +452,9 @@ namespace c8alpha
         /// <param name="bytesOfSpriteData"></param>
         private void DrawSprite(byte x, byte y, byte bytesOfSpriteData) //DXYN
         {
+#if DEBUG
+            Console.WriteLine("\tDraw sprite");
+#endif
             bool[] pixelData;
             bool switchedOffPixel = false;
             int clippedX, clippedY;
@@ -378,45 +485,72 @@ namespace c8alpha
         }
         private void SkipIfKeyPressed(byte x) //EX9E
         {
-
+#if DEBUG
+            Console.WriteLine("\tSkip if key pressed");
+#endif
         }
         private void SkipIfKeyNotPressed(byte x) //EXA1
         {
-
+#if DEBUG
+            Console.WriteLine("\tSkip if key NOT pressed");
+#endif
         }
         private void StoreDelayToVx(byte x) //FX07
         {
+#if DEBUG
+            Console.WriteLine("\tStore delay timer");
+#endif
             this.V[x] = this.timerDelay;
         }
         private void WaitForKey(byte x) //FX0A
         {
-
+#if DEBUG
+            Console.WriteLine("\tWait for key");
+#endif
         }
         private void SetDelayTimer(byte x) //FX15
         {
+#if DEBUG
+            Console.WriteLine("\tSet delay timer");
+#endif
             this.timerDelay = this.V[x];
         }
         private void SetSoundTimer(byte x) //FX18
         {
+#if DEBUG
+            Console.WriteLine("\tSet sound timer");
+#endif
             this.timerSound = this.V[x];
         }
         private void AddVxToI(byte x) //FX1E
         {
+#if DEBUG
+            Console.WriteLine("\tOffset I by Vx");
+#endif
             this.I += this.V[x];
         }
         private void SetIToSpriteData(byte x) //FX29
         {
+#if DEBUG
+            Console.WriteLine("\tSet I to font address");
+#endif
             this.I = (ushort)(Constants.SpriteFontLocation + (x * 5));
         }
         private void StoreBinaryDecimal(byte x) //FX33
         {
+#if DEBUG
+            Console.WriteLine("\tStore binary deciaml");
+#endif
             RAM[I] = (byte)((V[x] / 100) % 10);
             RAM[I+1] = (byte)((V[x] / 10) % 10);
             RAM[I+2] = (byte)((V[x]) % 10);
         }
         private void StoreRegistersToRAM(byte x) //FX55
         {
-            for(int i = 0; i<=x; i++)
+#if DEBUG
+            Console.WriteLine("\tDump registers to RAM");
+#endif
+            for (int i = 0; i<=x; i++)
             {
                 this.RAM[this.I] = this.V[i];
                 this.I++;
@@ -424,6 +558,9 @@ namespace c8alpha
         }
         private void LoadRegistersFromRam(byte x) //FX65
         {
+#if DEBUG
+            Console.WriteLine("\tLoad registers from RAM");
+#endif
             for (int i = 0; i <= x; i++)
             {
                 this.V[i] = this.RAM[this.I];
