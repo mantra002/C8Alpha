@@ -36,14 +36,20 @@ namespace c8alpha
         private byte timerSound;
 
         private byte[] V;
-        private ushort I;
-        private ushort PC;
+        private ushort instructionPointer;
+        private ushort programCounter;
         private byte[] RAM;
         private ushort[] stack;
-        private byte stackPointer = 0;
+        private byte stackPointer;
 
         public bool[,] FrameBuffer;
         private Random r;
+        public int ClockSpeedHz { get; set; }
+        public bool PlaySound => playSound; 
+        public bool KeyIsPressed { get; set; }
+        public byte PressedKey { get; set; }
+        private int clockCycleCount;
+        private bool playSound;
 
         public Chip8()
         {
@@ -52,21 +58,26 @@ namespace c8alpha
             RAM = new byte[Constants.RamSizeBytes];
             stack = new ushort[Constants.StackSize];
             V = new byte[Constants.VRegCount];
-            I = 0;
+            instructionPointer = 0;
             timerDelay = 0;
             timerSound = 0;
-
+            stackPointer = 0;
+            clockCycleCount = 0;
+            this.ClockSpeedHz = 300;
+            this.playSound = false;
+            this.KeyIsPressed = false;
+            this.PressedKey = 0x0;
             InitSpriteFont(Constants.SpriteFontLocation);
 
         }
-        public void LoadRAM(byte[] ramData, ushort addr=0x200)
+        public void LoadRAM(byte[] ramData, ushort addr = 0x200)
         {
-            if(ramData.Length + addr > Constants.RamSizeBytes)
+            if (ramData.Length + addr > Constants.RamSizeBytes)
             {
                 Console.WriteLine("RAM data exceeds memeory bounds, cancelling load.");
                 return;
             }
-            PC = addr;
+            programCounter = addr;
             ramData.CopyTo(RAM, addr);
         }
         private void InitSpriteFont(ushort addr)
@@ -88,7 +99,7 @@ namespace c8alpha
         {
             ushort addr;
             byte x, y, n, value;
-            ushort opcode = (ushort)(RAM[PC++] << 8 | RAM[PC++]);
+            ushort opcode = (ushort)(RAM[programCounter++] << 8 | RAM[programCounter++]);
             byte nibble = (byte)(opcode >> 12);
             addr = (ushort)(opcode & 0x0FFF);
             value = (byte)(opcode & 0x00FF);
@@ -98,7 +109,7 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("Executing next instruction: ");
             Console.WriteLine("\tOpCode: 0x" + Convert.ToString(opcode, 16));
-            if(x < Constants.VRegCount) Console.WriteLine("\tx: 0x" + Convert.ToString(x, 16) + " Vx: " + V[x].ToString());
+            if (x < Constants.VRegCount) Console.WriteLine("\tx: 0x" + Convert.ToString(x, 16) + " Vx: " + V[x].ToString());
             if (y < Constants.VRegCount) Console.WriteLine("\ty: 0x" + Convert.ToString(y, 16) + " Vy: " + V[y].ToString());
             Console.WriteLine("\tN: " + n.ToString());
             Console.WriteLine("\tNN: " + n.ToString());
@@ -138,7 +149,7 @@ namespace c8alpha
                     SkipIfVxNotEqualVy(x, y);
                     break;
                 case 0x8:
-                    switch (n) 
+                    switch (n)
                     {
                         case 0:
                             StoreVyInVx(x, y);
@@ -170,7 +181,7 @@ namespace c8alpha
                         default:
                             throw new Exception("Unknown Opcode!");
                     }
-                    
+
                     break;
                 case 0x9:
                     SkipIfVxNotEqualVy(x, y);
@@ -192,7 +203,7 @@ namespace c8alpha
                     else if (n == 1) SkipIfKeyNotPressed(x);
                     break;
                 case 0xF:
-                    switch(value)
+                    switch (value)
                     {
                         case 0x07:
                             StoreDelayToVx(x);
@@ -228,6 +239,20 @@ namespace c8alpha
                 default:
                     throw new Exception("Unknown Opcode!");
             }
+            clockCycleCount++;
+            if (clockCycleCount % (ClockSpeedHz / 60) == 0)
+            {
+                if (timerDelay != 0) timerDelay--;
+                if (timerSound != 0)
+                {
+                    this.playSound = true;
+                    timerSound--;
+                }
+                else
+                {
+                    this.playSound = false;
+                }
+            }
         }
 
         private void Execute() //0NNN
@@ -251,7 +276,7 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("\tReturn from sub");
 #endif
-            this.PC = Pop();
+            this.programCounter = Pop();
         }
 
         private void JumpToAddr(ushort addr) //1NNN
@@ -259,15 +284,15 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("\tJump to addr:" + Convert.ToString(addr, 16));
 #endif
-            this.PC = addr;
+            this.programCounter = addr;
         }
         private void ExecuteSub(ushort addr) //2NNN
         {
 #if DEBUG
             Console.WriteLine("\tExecute sub at " + Convert.ToString(addr, 16));
 #endif
-            Push(this.PC);
-            this.PC = addr;
+            Push(this.programCounter);
+            this.programCounter = addr;
         }
 
         private void SkipIfVxEqual(byte x, byte value) //3XNN
@@ -427,7 +452,7 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("\tSet addr into I");
 #endif
-            I = addr;
+            instructionPointer = addr;
         }
 
         private void JumpToAddrPlusV0(ushort addr) //BNNN
@@ -435,7 +460,7 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("\tJump to V0 + addr, result is " + Convert.ToString(V[0x0] + addr, 16));
 #endif
-            PC = (byte)(addr + V[0x0]);
+            programCounter = (byte)(addr + V[0x0]);
         }
 
         private void RandomVx(byte x, byte value) //CXNN
@@ -463,14 +488,14 @@ namespace c8alpha
             bool switchedOffPixel = false;
             for (int i = 0; i < bytesOfSpriteData; i++)
             {
-                pixelData = ByteToBools(RAM[I + i]);
-                for(int j = 0; j<8; j++)
+                pixelData = ByteToBools(RAM[instructionPointer + i]);
+                for (int j = 0; j < 8; j++)
                 {
                     if (switchedOffPixel == false && FrameBuffer[(V[x] + j) % Constants.ScreenWidth, (V[y] + i) % Constants.ScreenHeight] == true && pixelData[j] == true)
                     {
                         switchedOffPixel = true;
                     }
-                    FrameBuffer[(V[x]+ j)%Constants.ScreenWidth, (V[y] + i)%Constants.ScreenHeight] ^= pixelData[j];
+                    FrameBuffer[(V[x] + j) % Constants.ScreenWidth, (V[y] + i) % Constants.ScreenHeight] ^= pixelData[j];
                 }
             }
             if (switchedOffPixel) V[0xF] = 1;
@@ -480,9 +505,9 @@ namespace c8alpha
         private bool[] ByteToBools(byte b)
         {
             bool[] result = new bool[8];
-            for(int i = 0; i<8; i++)
+            for (int i = 0; i < 8; i++)
             {
-                result[7-i] = (b & (1 << i)) != 0;
+                result[7 - i] = (b & (1 << i)) != 0;
             }
             return result;
         }
@@ -491,12 +516,20 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("\tSkip if key pressed");
 #endif
+            if (this.KeyIsPressed && this.PressedKey == x)
+            {
+                SkipOpcode();
+            }
         }
         private void SkipIfKeyNotPressed(byte x) //EXA1
         {
 #if DEBUG
             Console.WriteLine("\tSkip if key NOT pressed");
 #endif
+            if (this.PressedKey != x || !this.KeyIsPressed)
+            {
+                SkipOpcode();
+            }
         }
         private void StoreDelayToVx(byte x) //FX07
         {
@@ -510,6 +543,10 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("\tWait for key");
 #endif
+            while (!this.KeyIsPressed && this.PressedKey != x)
+            {
+                //Do Nothing
+            }
         }
         private void SetDelayTimer(byte x) //FX15
         {
@@ -530,33 +567,33 @@ namespace c8alpha
 #if DEBUG
             Console.WriteLine("\tOffset I by Vx");
 #endif
-            this.I += this.V[x];
+            this.instructionPointer += this.V[x];
         }
         private void SetIToSpriteData(byte x) //FX29
         {
 #if DEBUG
             Console.WriteLine("\tSet I to font address");
 #endif
-            this.I = (ushort)(Constants.SpriteFontLocation + (x * 5));
+            this.instructionPointer = (ushort)(Constants.SpriteFontLocation + (x * 5));
         }
         private void StoreBinaryDecimal(byte x) //FX33
         {
 #if DEBUG
             Console.WriteLine("\tStore binary deciaml");
 #endif
-            RAM[I] = (byte)((V[x] / 100) % 10);
-            RAM[I+1] = (byte)((V[x] / 10) % 10);
-            RAM[I+2] = (byte)((V[x]) % 10);
+            RAM[instructionPointer] = (byte)((V[x] / 100) % 10);
+            RAM[instructionPointer + 1] = (byte)((V[x] / 10) % 10);
+            RAM[instructionPointer + 2] = (byte)((V[x]) % 10);
         }
         private void StoreRegistersToRAM(byte x) //FX55
         {
 #if DEBUG
             Console.WriteLine("\tDump registers to RAM");
 #endif
-            for (int i = 0; i<=x; i++)
+            for (int i = 0; i <= x; i++)
             {
-                this.RAM[this.I] = this.V[i];
-                this.I++;
+                this.RAM[this.instructionPointer] = this.V[i];
+                this.instructionPointer++;
             }
         }
         private void LoadRegistersFromRam(byte x) //FX65
@@ -566,20 +603,20 @@ namespace c8alpha
 #endif
             for (int i = 0; i <= x; i++)
             {
-                this.V[i] = this.RAM[this.I];
-                this.I++;
+                this.V[i] = this.RAM[this.instructionPointer];
+                this.instructionPointer++;
             }
         }
 
         private void SkipOpcode()
         {
-            this.PC += 2;
+            this.programCounter += 2;
         }
         public void DumpRegisters()
         {
             Console.WriteLine("===================");
-            Console.WriteLine(" PC: 0x" + Convert.ToString(PC, 16));
-            Console.WriteLine(" I: 0x" + Convert.ToString(I, 16));
+            Console.WriteLine(" PC: 0x" + Convert.ToString(programCounter, 16));
+            Console.WriteLine(" I: 0x" + Convert.ToString(instructionPointer, 16));
             Console.WriteLine(" SP: 0x" + Convert.ToString(stackPointer, 16));
             Console.WriteLine("===================");
             for (int i = 0; i < Constants.VRegCount; i++)
