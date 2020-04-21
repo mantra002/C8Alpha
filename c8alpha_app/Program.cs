@@ -17,6 +17,7 @@ namespace c8alpha
             while (true)
             {
                 c8.ClockCycle();
+                c8.DumpRegisters();
                 DrawFrameBuffer(c8.FrameBuffer);
                 //Console.ReadKey();
             }

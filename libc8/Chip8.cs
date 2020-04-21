@@ -440,6 +440,9 @@ namespace c8alpha
 
         private void RandomVx(byte x, byte value) //CXNN
         {
+#if DEBUG
+            Console.WriteLine("\tSetting Vx to random number");
+#endif
             V[x] = (byte)(r.Next(0, 256) & value);
         }
         /// <summary>
@@ -454,20 +457,20 @@ namespace c8alpha
         {
 #if DEBUG
             Console.WriteLine("\tDraw sprite");
+            Console.WriteLine("\t\tSprite is " + bytesOfSpriteData + "b tall");
 #endif
             bool[] pixelData;
             bool switchedOffPixel = false;
-            int clippedX, clippedY;
             for (int i = 0; i < bytesOfSpriteData; i++)
             {
                 pixelData = ByteToBools(RAM[I + i]);
                 for(int j = 0; j<8; j++)
                 {
-                    if (switchedOffPixel == false && FrameBuffer[x, y + i] == true && pixelData[j] == true)
+                    if (switchedOffPixel == false && FrameBuffer[(V[x] + j) % Constants.ScreenWidth, (V[y] + i) % Constants.ScreenHeight] == true && pixelData[j] == true)
                     {
                         switchedOffPixel = true;
                     }
-                    FrameBuffer[x%Constants.ScreenWidth, (y + i)%Constants.ScreenHeight] ^= pixelData[j];
+                    FrameBuffer[(V[x]+ j)%Constants.ScreenWidth, (V[y] + i)%Constants.ScreenHeight] ^= pixelData[j];
                 }
             }
             if (switchedOffPixel) V[0xF] = 1;
@@ -479,7 +482,7 @@ namespace c8alpha
             bool[] result = new bool[8];
             for(int i = 0; i<8; i++)
             {
-                result[i] = (b & (1 << i)) != 0;
+                result[7-i] = (b & (1 << i)) != 0;
             }
             return result;
         }
@@ -571,6 +574,22 @@ namespace c8alpha
         private void SkipOpcode()
         {
             this.PC += 2;
+        }
+        public void DumpRegisters()
+        {
+            Console.WriteLine("===================");
+            Console.WriteLine(" PC: 0x" + Convert.ToString(PC, 16));
+            Console.WriteLine(" I: 0x" + Convert.ToString(I, 16));
+            Console.WriteLine(" SP: 0x" + Convert.ToString(stackPointer, 16));
+            Console.WriteLine("===================");
+            for (int i = 0; i < Constants.VRegCount; i++)
+            {
+                Console.WriteLine(" V" + Convert.ToString(i, 16) + ": 0x" + Convert.ToString(V[i], 16));
+            }
+            Console.WriteLine("===================");
+            Console.WriteLine(" DT: 0x" + Convert.ToString(timerDelay, 16));
+            Console.WriteLine(" ST: 0x" + Convert.ToString(timerSound, 16));
+            Console.WriteLine("===================");
         }
     }
 }
